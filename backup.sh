@@ -39,9 +39,16 @@ REPOS=$(curl --silent \
              https://api.github.com/user/repos \
         | jq -r '.[].ssh_url')
 
+log=$(mktemp)
 for r in $REPOS; do
-  echo $r
-  git clone --bare $r
+  echo $r | sed 's/git@github.com://'
+  if ! git clone --bare $r >$log 2>&1; then
+    echo "Something went wrong. Output from git clone:"
+    echo "--"
+    cat $log
+    echo "--"
+    exit 1
+  fi
 done
 
 cd ..
