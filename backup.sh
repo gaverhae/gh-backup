@@ -40,5 +40,5 @@ done
 
 cd ..
 
-GZIP=-9 tar czf $TODAY.tar.gz $TODAY
+tar -I 'gzip -9' -cf $TODAY.tar.gz $TODAY
 mv $TODAY.tar.gz "$DIR"/_backups/
