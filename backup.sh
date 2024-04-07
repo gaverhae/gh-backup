@@ -28,12 +28,6 @@ trap "rm -rf $tmp" EXIT
 mkdir $tmp/$TODAY
 cd $tmp/$TODAY
 
-if [ -n "${GITHUB_TOKEN:-}" ]; then
-  auth="-H \"Authorization: Bearer $GITHUB_TOKEN\""
-else
-  auth=
-fi
-
 REPOS=$(curl --silent \
              -H "Authorization: Bearer $GITHUB_TOKEN" \
              https://api.github.com/user/repos \
