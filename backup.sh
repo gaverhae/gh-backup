@@ -15,6 +15,8 @@ if [ -z "${GITHUB_TOKEN:-}" ]; then
   exit 1
 fi
 
+mkdir -p $DIR/_backups
+
 TODAY=$(date -I)
 
 if [ -d "$DIR"/_backups/$TODAY.tar.gz ]; then
