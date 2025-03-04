@@ -31,6 +31,7 @@ mkdir $tmp/$TODAY
 cd $tmp/$TODAY
 
 get_repos() (
+  set -euo pipefail
   url=https://api.github.com/user/repos
   auth="Authorization: Bearer $GITHUB_TOKEN"
   tmp_dir=$(mktemp -d)
