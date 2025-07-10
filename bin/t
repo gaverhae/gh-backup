@@ -13,38 +13,45 @@
                               (apply str)))
         files (->> (fs/list-dir data-dir)
                    (remove (fn [p] (= ".DS_Store" (fs/file-name p)))))]
-    (doseq [[year files] (->> files
-                              (group-by get-year)
-                              (sort-by (fn [[y fs]] (parse-long y))))]
-      (let [?year-file (->> files
-                            (filter (fn [p] (= (format "%s.tar.zst" year)
-                                               (fs/file-name p))))
-                            first)]
-        (fs/with-temp-dir [d]
-          (let [cp (fn [f] (fs/copy f (fs/path d (fs/file-name f))))
-                rm (fn [f] (fs/delete (fs/path d (fs/file-name f))))
-                tar-x (fn [f] (p/shell "tar" "xf" (fs/path d (fs/file-name f)) "-C" d))
-                tar-c (fn [] (p/shell "tar"
-                                      "-I zstd -22 -M50 --ultra"
-                                      "-f" (fs/path dir "result" (str year ".tar.zst"))
-                                      "-C" d
-                                      "-c" year))
-                mv (fn [f]
-                     (let [dir-name (-> (fs/file-name f)
-                                        (string/split #"\.")
-                                        first)]
-                       (fs/move (fs/path d dir-name) (fs/path d year))))]
-            (if ?year-file
-              (do (cp ?year-file)
-                  (tar-x ?year-file)
-                  (rm ?year-file))
-              (fs/create-dir (fs/path d year)))
-            (doseq [f (->> files (remove #{?year-file}))]
-              (cp f)
-              (tar-x f)
-              (rm f)
-              (mv f))
-            (tar-c)))))))
+    (fs/with-temp-dir [result-d]
+      (doseq [[year files] (->> files
+                                (group-by get-year)
+                                (sort-by (fn [[y fs]] (parse-long y))))]
+        (let [?year-file (->> files
+                              (filter (fn [p] (= (format "%s.tar.zst" year)
+                                                 (fs/file-name p))))
+                              first)]
+          (fs/with-temp-dir [year-d]
+            (let [cp (fn [f] (fs/copy f (fs/path year-d (fs/file-name f))))
+                  rm (fn [f] (fs/delete (fs/path year-d (fs/file-name f))))
+                  tar-x (fn [f] (p/shell "tar" "xf" (fs/path year-d (fs/file-name f)) "-C" year-d))
+                  tar-c (fn [] (p/shell "tar"
+                                        "-I zstd -22 -M50 --ultra"
+                                        "-f" (fs/path result-d (str year ".tar.zst"))
+                                        "-C" year-d
+                                        "-c" year))
+                  mv (fn [f]
+                       (let [dir-name (-> (fs/file-name f)
+                                          (string/split #"\.")
+                                          first)]
+                         (fs/move (fs/path year-d dir-name) (fs/path year-d year))))]
+              (if (and ?year-file
+                       (= 1 (count files)))
+                (fs/copy ?year-file (fs/path result-d (fs/file-name ?year-file)))
+                (do (if ?year-file
+                      (do (cp ?year-file)
+                          (tar-x ?year-file)
+                          (rm ?year-file))
+                      (fs/create-dir (fs/path year-d year)))
+                    (doseq [f (->> files (remove #{?year-file}))]
+                      (cp f)
+                      (tar-x f)
+                      (rm f)
+                      (mv f))
+                    (tar-c)))))))
+      (fs/move data-dir (fs/path dir "trash"))
+      (fs/move result-d (fs/path dir "_backups"))
+      (fs/delete-tree (fs/path dir "trash")))))
 
 (defn -main
   [dir & args]
