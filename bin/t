@@ -56,6 +56,10 @@
 (defn -main
   [dir & args]
   (cond
+    (= ["repl"] args) (let [p (+ (rand-int 50000)
+                                 10000)]
+                        (spit ".nrepl-port" p)
+                        (p/exec "bb" "nrepl-server" (str p)))
     (= ["compress"] args) (compress dir)
     :else (do (println "Unrecognized command: ")
               (prn args)
