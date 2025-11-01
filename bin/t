@@ -5,8 +5,6 @@
             [babashka.process :as p]
             [clojure.string :as string]))
 
-(def root (fs/real-path (fs/path ".")))
-
 (defn compress
   [dir]
   (let [data-dir (fs/path dir "_backups")
@@ -14,65 +12,39 @@
                               (take-while (comp parse-long str))
                               (apply str)))
         files (->> (fs/list-dir data-dir)
-                   (remove (fn [p] (= ".DS_Store" (fs/file-name p)))))
-        #_#_year-files (fs/match data-dir "regex:\\d+\\.tar\\.zst")
-        #_#_day-files (fs/match data-dir "regex:\\d+-\\d{2}-\\d{2}\\.tar\\.gz")]
-    (println "Files:")
-    (->> files (map str) sort (map (fn [f] (println " :  " f))) doall)
+                   (remove (fn [p] (= ".DS_Store" (fs/file-name p)))))]
     (doseq [[year files] (->> files
                               (group-by get-year)
                               (sort-by (fn [[y fs]] (parse-long y))))]
-      (println year)
-      (->> files (map str) sort (map (fn [f] (println " :  " f))) doall)
       (let [?year-file (->> files
                             (filter (fn [p] (= (format "%s.tar.zst" year)
                                                (fs/file-name p))))
                             first)]
         (fs/with-temp-dir [d]
-          (let [cp (fn [f]
-                     (prn [:cp (str f) (str (fs/path d (fs/file-name f)))])
-                     (fs/copy f (fs/path d (fs/file-name f))))
-                rm (fn [f]
-                     (prn [:rm (str (fs/path d (fs/file-name f)))])
-                     (fs/delete (fs/path d (fs/file-name f))))
-                tar-x (fn [f]
-                        (prn [:tar-x (str (fs/path d (fs/file-name f)))])
-                        (p/shell "tar" "xf" (fs/path d (fs/file-name f)) "-C" d))
-                tar-c (fn []
-                        (prn [:tar-c year])
-                        (p/shell "tar"
-                                 "-I zstd -22 -M50 --ultra"
-                                 "-f" (fs/path dir "result" (str year ".tar.zst"))
-                                 "-C" d
-                                 "-c" year))
+          (let [cp (fn [f] (fs/copy f (fs/path d (fs/file-name f))))
+                rm (fn [f] (fs/delete (fs/path d (fs/file-name f))))
+                tar-x (fn [f] (p/shell "tar" "xf" (fs/path d (fs/file-name f)) "-C" d))
+                tar-c (fn [] (p/shell "tar"
+                                      "-I zstd -22 -M50 --ultra"
+                                      "-f" (fs/path dir "result" (str year ".tar.zst"))
+                                      "-C" d
+                                      "-c" year))
                 mv (fn [f]
                      (let [dir-name (-> (fs/file-name f)
                                         (string/split #"\.")
                                         first)]
-                       (prn [:mv dir-name])
-                       (fs/move (fs/path d dir-name) (fs/path d year))))
-                ls (fn [p]
-                     (p/shell "ls" "-la" (fs/path d p)))]
+                       (fs/move (fs/path d dir-name) (fs/path d year))))]
             (if ?year-file
               (do (cp ?year-file)
                   (tar-x ?year-file)
                   (rm ?year-file))
               (fs/create-dir (fs/path d year)))
             (doseq [f (->> files (remove #{?year-file}))]
-              (ls ".")
-              (ls year)
               (cp f)
               (tar-x f)
-              (ls ".")
-              (ls year)
               (rm f)
-              (ls ".")
-              (ls year)
               (mv f))
-            (ls ".")
-            (ls year)
-            (tar-c)
-            ))))))
+            (tar-c)))))))
 
 (defn -main
   [dir & args]
